@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from requests.auth import HTTPBasicAuth
@@ -28,7 +29,7 @@ class JiraClientError(Exception):
 
 class JiraClient:
     def __init__(self, base_url: str, email: str, api_token: str, timeout_seconds: int = 20):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = self._normalize_base_url(base_url)
         self.timeout_seconds = timeout_seconds
         self.session = requests.Session()
         self.session.auth = HTTPBasicAuth(email, api_token)
