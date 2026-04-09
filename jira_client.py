@@ -4,11 +4,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 from requests.auth import HTTPBasicAuth
 
 from comment_utils import extract_latest_comment
+
+
+def normalize_base_url(base_url: str) -> str:
+    cleaned = base_url.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    return cleaned.rstrip("/")
 
 
 @dataclass(slots=True)
@@ -28,14 +37,14 @@ class JiraClientError(Exception):
 
 class JiraClient:
     def __init__(self, base_url: str, email: str, api_token: str, timeout_seconds: int = 20):
-        self.base_url = base_url.rstrip("/")
+        self.base_url = normalize_base_url(base_url)
         self.timeout_seconds = timeout_seconds
         self.session = requests.Session()
         self.session.auth = HTTPBasicAuth(email, api_token)
         self.session.headers.update({"Accept": "application/json"})
         self._sprint_field_id: str | None = None
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
+    def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         url = f"{self.base_url}{path}"
         try:
             response = self.session.request(method, url, timeout=self.timeout_seconds, **kwargs)
@@ -54,10 +63,28 @@ class JiraClient:
         if response.status_code >= 400:
             raise JiraClientError(f"Jira API error {response.status_code}: {response.text[:200]}")
 
+        if response.status_code == 204 or not response.content:
+            return {}
+
         try:
             return response.json()
         except ValueError as exc:
-            raise JiraClientError("Jira API returned invalid JSON.") from exc
+            content_type = response.headers.get("Content-Type", "unknown")
+            body_preview = (response.text or "").strip().replace("\n", " ")[:200]
+            if body_preview:
+                hint = ""
+                if "text/html" in content_type.lower():
+                    hint = " Jira base URL should look like https://yourorg.atlassian.net (no /browse path)."
+                raise JiraClientError(
+                    "Jira API returned a non-JSON response "
+                    f"(status={response.status_code}, content-type={content_type}). "
+                    f"Check Jira base URL and credentials.{hint} Response starts with: {body_preview!r}"
+                ) from exc
+            raise JiraClientError(
+                "Jira API returned an empty non-JSON response "
+                f"(status={response.status_code}, content-type={content_type}). "
+                "Check Jira base URL and credentials."
+            ) from exc
 
     def _resolve_sprint_field_id(self) -> str | None:
         if self._sprint_field_id is not None:
@@ -96,10 +123,13 @@ class JiraClient:
 
     def fetch_issue(self, issue_key: str) -> JiraIssueData:
         sprint_field_id = self._resolve_sprint_field_id()
+        requested_fields = ["summary", "status"]
+        if sprint_field_id:
+            requested_fields.append(sprint_field_id)
         issue = self._request(
             "GET",
             f"/rest/api/3/issue/{issue_key}",
-            params={"fields": "summary,status"},
+            params={"fields": requested_fields},
         )
         comments = self._fetch_comments(issue_key)
         latest_comment = extract_latest_comment(comments)
