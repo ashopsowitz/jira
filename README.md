@@ -45,7 +45,7 @@ A small local-only app to track Jira issues you care about.
    pip install -r requirements.txt
    ```
 
-3. **Configure environment variables**
+3. **Configure environment variables (optional but recommended)**
 
    ```bash
    cp .env.example .env
@@ -56,6 +56,9 @@ A small local-only app to track Jira issues you care about.
    - `JIRA_BASE_URL` (example: `https://yourorg.atlassian.net`)
    - `JIRA_EMAIL` (Atlassian account email)
    - `JIRA_API_TOKEN` (API token)
+
+   You can also enter credentials directly in the app sidebar at runtime.
+   Sidebar credentials override missing `.env` values for the current session only.
 
 4. **Run the app**
 

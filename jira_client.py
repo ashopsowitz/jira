@@ -35,7 +35,7 @@ class JiraClient:
         self.session.headers.update({"Accept": "application/json"})
         self._sprint_field_id: str | None = None
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
+    def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         url = f"{self.base_url}{path}"
         try:
             response = self.session.request(method, url, timeout=self.timeout_seconds, **kwargs)
@@ -54,10 +54,25 @@ class JiraClient:
         if response.status_code >= 400:
             raise JiraClientError(f"Jira API error {response.status_code}: {response.text[:200]}")
 
+        if response.status_code == 204 or not response.content:
+            return {}
+
         try:
             return response.json()
         except ValueError as exc:
-            raise JiraClientError("Jira API returned invalid JSON.") from exc
+            content_type = response.headers.get("Content-Type", "unknown")
+            body_preview = (response.text or "").strip().replace("\n", " ")[:200]
+            if body_preview:
+                raise JiraClientError(
+                    "Jira API returned a non-JSON response "
+                    f"(status={response.status_code}, content-type={content_type}). "
+                    f"Check Jira base URL and credentials. Response starts with: {body_preview!r}"
+                ) from exc
+            raise JiraClientError(
+                "Jira API returned an empty non-JSON response "
+                f"(status={response.status_code}, content-type={content_type}). "
+                "Check Jira base URL and credentials."
+            ) from exc
 
     def _resolve_sprint_field_id(self) -> str | None:
         if self._sprint_field_id is not None:
