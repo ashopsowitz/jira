@@ -12,6 +12,14 @@ from requests.auth import HTTPBasicAuth
 from comment_utils import extract_latest_comment
 
 
+def normalize_base_url(base_url: str) -> str:
+    cleaned = base_url.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+    return cleaned.rstrip("/")
+
+
 @dataclass(slots=True)
 class JiraIssueData:
     issue_key: str
@@ -112,10 +120,13 @@ class JiraClient:
 
     def fetch_issue(self, issue_key: str) -> JiraIssueData:
         sprint_field_id = self._resolve_sprint_field_id()
+        requested_fields = ["summary", "status"]
+        if sprint_field_id:
+            requested_fields.append(sprint_field_id)
         issue = self._request(
             "GET",
             f"/rest/api/3/issue/{issue_key}",
-            params={"fields": "summary,status"},
+            params={"fields": requested_fields},
         )
         comments = self._fetch_comments(issue_key)
         latest_comment = extract_latest_comment(comments)
