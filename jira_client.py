@@ -36,14 +36,6 @@ class JiraClient:
         self.session.headers.update({"Accept": "application/json"})
         self._sprint_field_id: str | None = None
 
-    @staticmethod
-    def _normalize_base_url(base_url: str) -> str:
-        cleaned = base_url.strip()
-        parsed = urlparse(cleaned)
-        if parsed.scheme and parsed.netloc:
-            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
-        return cleaned.rstrip("/")
-
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         url = f"{self.base_url}{path}"
         try:
@@ -72,13 +64,10 @@ class JiraClient:
             content_type = response.headers.get("Content-Type", "unknown")
             body_preview = (response.text or "").strip().replace("\n", " ")[:200]
             if body_preview:
-                hint = ""
-                if "text/html" in content_type.lower():
-                    hint = " Jira base URL should look like https://yourorg.atlassian.net (no /browse path)."
                 raise JiraClientError(
                     "Jira API returned a non-JSON response "
                     f"(status={response.status_code}, content-type={content_type}). "
-                    f"Check Jira base URL and credentials.{hint} Response starts with: {body_preview!r}"
+                    f"Check Jira base URL and credentials. Response starts with: {body_preview!r}"
                 ) from exc
             raise JiraClientError(
                 "Jira API returned an empty non-JSON response "
