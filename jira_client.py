@@ -37,7 +37,7 @@ class JiraClientError(Exception):
 
 class JiraClient:
     def __init__(self, base_url: str, email: str, api_token: str, timeout_seconds: int = 20):
-        self.base_url = normalize_base_url(base_url)
+        self.base_url = self._normalize_base_url(base_url)
         self.timeout_seconds = timeout_seconds
         self.session = requests.Session()
         self.session.auth = HTTPBasicAuth(email, api_token)
@@ -72,13 +72,10 @@ class JiraClient:
             content_type = response.headers.get("Content-Type", "unknown")
             body_preview = (response.text or "").strip().replace("\n", " ")[:200]
             if body_preview:
-                hint = ""
-                if "text/html" in content_type.lower():
-                    hint = " Jira base URL should look like https://yourorg.atlassian.net (no /browse path)."
                 raise JiraClientError(
                     "Jira API returned a non-JSON response "
                     f"(status={response.status_code}, content-type={content_type}). "
-                    f"Check Jira base URL and credentials.{hint} Response starts with: {body_preview!r}"
+                    f"Check Jira base URL and credentials. Response starts with: {body_preview!r}"
                 ) from exc
             raise JiraClientError(
                 "Jira API returned an empty non-JSON response "
