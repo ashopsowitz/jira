@@ -20,16 +20,6 @@ st.caption("Paste Jira issue URLs, sync details, and keep a local SQLite watchli
 
 store = WatchlistStore(db_path="watchlist.db")
 
-base_url = os.getenv("JIRA_BASE_URL", "").strip()
-email = os.getenv("JIRA_EMAIL", "").strip()
-api_token = os.getenv("JIRA_API_TOKEN", "").strip()
-
-has_credentials = all([base_url, email, api_token])
-client = JiraClient(base_url, email, api_token) if has_credentials else None
-
-if not has_credentials:
-    st.warning("Missing Jira credentials. Fill JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN in .env.")
-
 with st.expander("Add Jira URLs"):
     pasted = st.text_area(
         "One Jira URL per line (or issue key)",
@@ -63,6 +53,38 @@ if add_clicked:
             st.error("Invalid URL(s) or keys:\n- " + "\n- ".join(invalid))
 
 st.sidebar.header("Options")
+st.sidebar.subheader("Jira credentials")
+st.sidebar.caption("Values entered here only live for this Streamlit session.")
+
+default_base_url = os.getenv("JIRA_BASE_URL", "").strip()
+default_email = os.getenv("JIRA_EMAIL", "").strip()
+default_api_token = os.getenv("JIRA_API_TOKEN", "").strip()
+
+base_url = st.sidebar.text_input(
+    "Jira base URL",
+    value=default_base_url,
+    placeholder="https://yourorg.atlassian.net",
+)
+email = st.sidebar.text_input(
+    "Atlassian account email",
+    value=default_email,
+    placeholder="name@company.com",
+)
+api_token = st.sidebar.text_input(
+    "Jira API token",
+    value=default_api_token,
+    type="password",
+)
+
+has_credentials = all([base_url.strip(), email.strip(), api_token.strip()])
+client = JiraClient(base_url.strip(), email.strip(), api_token.strip()) if has_credentials else None
+
+if not has_credentials:
+    st.warning(
+        "Missing Jira credentials. Provide JIRA_BASE_URL, JIRA_EMAIL, and JIRA_API_TOKEN in the sidebar "
+        "or in your .env file."
+    )
+
 auto_refresh_mins = st.sidebar.selectbox("Auto-refresh interval (minutes)", [0, 2, 5, 10], index=0)
 if auto_refresh_mins > 0:
     st.markdown(
@@ -96,7 +118,7 @@ selected_keys = st.multiselect("Select tickets", options=issue_keys, default=[])
 
 def _refresh(issue_key_list: Iterable[str]) -> None:
     if not has_credentials or client is None:
-        st.error("Cannot refresh without Jira credentials in environment variables.")
+        st.error("Cannot refresh without Jira credentials.")
         return
 
     keys = list(issue_key_list)
